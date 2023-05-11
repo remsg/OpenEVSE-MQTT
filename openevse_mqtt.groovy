@@ -6,6 +6,12 @@
  *  https://raw.githubusercontent.com/jrfarrar/hubitat/master/devicehandlers/garadgetMQTT/garadgetmqtt.groovy
  *  and work from tomw's (https://github.com/tomwpublic) OpenEVSE hubitat client
  *  Tested with OpenEVSE WiFi v1 gui_v2 firmware v4.2.2, OpenEVSE v7.1.3
+ *
+ *  References:
+ *    OpenEVSE url: https://openevse.stoplight.io/docs/openevse-wifi-v4/c03364fd24abd-mqtt
+ *    OpenEVSE Firmware releases: https://github.com/OpenEVSE/open_evse/releases
+ *    OpenEVSE WiFi Firmware releases: https://github.com/OpenEVSE/ESP32_WiFi_V4.x/releases
+ *
  */
 
 metadata {
