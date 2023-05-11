@@ -12,7 +12,7 @@ metadata {
     definition (name: "OpenEVSE MQTT",
                 author: "remsg",
                 namespace: "openevse",
-               importUrl: "") {
+               importUrl: "https://raw.githubusercontent.com/remsg/OpenEVSE-MQTT/main/openevse_mqtt.groovy") {
         capability "Initialize"
         capability "CurrentMeter"
         capability "EnergyMeter"
@@ -45,8 +45,6 @@ metadata {
         attribute "voltage", "number"
         attribute "override", "string"
         attribute "temperature", "number"
-    }
-}
 preferences {
     section("Settings for connection from HE to Broker") {
         input name: "topicName", type: "text", title: "OpenEVSE Name(Topic name)", required: true
@@ -65,7 +63,9 @@ preferences {
    if( ShowAllPreferences ){
     section("Settings for OpenEVSE"){
         // put configuration here
-        if (topicName && ipAddr && ipPort) input ( "max_current", "number", title: "<b>OpenEVSE: Max Current</b> (6-80, default 24)", defaultValue: 24,range: "6..80", required: false)
+        if (topicName && ipAddr && ipPort) input ( "max_current", "number", title: "<b>Max Current for Manual Override</b> (6-80, default 24)", defaultValue: 24,range: "6..80", required: false)
+        if (topicName && ipAddr && ipPort) input ( "charge_current", "number", title: "<b>Charge Current for Manual Override</b> (6-80, default 24)", defaultValue: 24,range: "6..80", required: false)
+        if (topicName && ipAddr && ipPort) input ( "auto_release", "bool", title: "<b>Auto-release when the vehicle is disconnected, false if manual override will persist after vehicle disconnection.</b> (true/false, default true)", defaultValue: 'true', required: false)
         }
    }
     /*
@@ -75,10 +75,12 @@ preferences {
         }
     */
 }
+}
+}
 
 def setVersion(){
     //state.name = "Garadget MQTT"
-	state.version = "0.0.4 - OpenEVSE MQTT Device Handler version"
+	state.version = "0.0.5 - OpenEVSE MQTT Device Handler version"
 }
 
 void installed() {
@@ -130,79 +132,6 @@ void updateTopic(topic, value) {
     }
 }
 
-//Handle config update topic
-void getConfig(config) {
-    //
-    //Set some states for Garadget/Particle Info
-    //
-    debuglog "sys: " + config.sys + " - Particle Firmware Version"
-    state.sys = config.sys + " - Particle Firmware Version"
-    debuglog "ver: " + config.ver + " - Garadget firmware version"
-    state.ver = config.ver + " - Garadget firmware version"
-    debuglog "id: "  + config.id  + " - Garadget/Particle device ID"
-    state.id = config.id  + " - Garadget/Particle device ID"
-    debuglog "ssid: "+ config.ssid + " - WiFi SSID name"
-    state.ssid = config.ssid + " - WiFi SSID name"
-    //
-    //refresh and update configuration values
-    //
-    debuglog "rdt: " + config.rdt + " - sensor scan interval in mS (200-60,000, default 1,000)"
-    rdt = config.rdt
-    device.updateSetting("rdt", [value: "${rdt}", type: "number"])
-    sendEvent(name: "rdt", value: rdt)
-    //
-    debuglog "mtt: " + config.mtt + " - door moving time in mS from completely opened to completely closed (1,000 - 120,000, default 10,000)"
-    mtt = config.mtt
-    device.updateSetting("mtt", [value: "${mtt}", type: "number"])
-    sendEvent(name: "mtt", value: mtt)
-    //
-    debuglog "rlt: " + config.rlt + " - button press time mS, time for relay to keep contacts closed (10-2,000, default 300)"
-    rlt = config.rlt
-    device.updateSetting("rlt", [value: "${rlt}", type: "number"])
-    sendEvent(name: "rlt", value: rlt)
-    //
-    debuglog "rlp: " + config.rlp + " - delay between consecutive button presses in mS (10-5,000 default 1,000)"
-    rlp = config.rlp
-    device.updateSetting("rlp", [value: "${rlp}", type: "number"])
-    sendEvent(name: "rlp", value: rlp)
-    //
-    debuglog "srt: " + config.srt + " - reflection threshold below which the door is considered open (1-80, default 25)"
-    srt = config.srt
-    device.updateSetting("srt", [value: "${srt}", type: "number"])
-    sendEvent(name: "srt", value: srt)
-    //
-    //nme is currently broken in Garadget firmware 1.2 - it does not honor it. It uses default device name.
-    debuglog "nme: " + config.nme + " - device name to be used in MQTT topic."
-    //nme = config.nme
-    //device.updateSetting("nme", [value: "${nme}", type: "text"])
-    //sendEvent(name: "nme", value: nme")
-    //
-    //Not tested setting the bitmap from HE - needs to be tested
-    debuglog "mqtt: " + config.mqtt + " - bitmap 0x01 - cloud enabled, 0x02 - mqtt enabled, 0x03 - cloud and mqtt enabled"
-    //mqtt = config.mqtt
-    //device.updateSetting("mqtt", [value: "${mqtt}", type: "text"])
-    //sendEvent(name: "mqtt", value: mqtt")
-    //
-    debuglog "mqip: " + config.mqip + " - MQTT broker IP address"
-    mqip = config.mqip
-    device.updateSetting("mqip", [value: "${mqip}", type: "text"])
-    sendEvent(name: "mqip", value: mqip)
-    //
-    debuglog "mqpt: " + config.mqpt + " - MQTT broker port number"
-    mqpt = config.mqpt
-    device.updateSetting("mqpt", [value: "${mqpt}", type: "number"])
-    sendEvent(name: "mqpt", value: mqpt)
-    //
-    //See no need to implement changing the username as you can't change the password via the MQTT interface
-    debuglog "mqus: " + config.mqus + " - MQTT user"
-    //mqus = config.mqus
-    //
-    debuglog "mqto: " + config.mqto + " - MQTT timeout (keep alive) in seconds"
-    mqto = config.mqto
-    device.updateSetting("mqto", [value: "${mqto}", type: "number"])
-    sendEvent(name: "mqto", value: mqto)
-}
-
 void updated() {
     infolog "updated..."
     //set schedules
@@ -237,9 +166,9 @@ def enableManualOverride( Ostate, Ocharge_current, Omax_current, Oauto_release )
     watchDog()
     def overrideOptions = [:]
     overrideOptions.state = Ostate
-    overrideOptions.charge_current = (null != Ocharge_current) ? Ocharge_current.toString() : '24'
-    overrideOptions.max_current = (null != Omax_current) ? Omax_current.toString() : '24'
-    overrideOptions.auto_release = Oauto_release
+    overrideOptions.charge_current = (null != Ocharge_current) ? Ocharge_current.toString() : charge_current.toString()
+    overrideOptions.max_current = (null != Omax_current) ? Omax_current.toString() : max_current.toString()
+    overrideOptions.auto_release = ('true' == Oauto_release) ? true : false
     def json = new groovy.json.JsonOutput().toJson(overrideOptions)
     infolog "enabling manual override ${json}"
     interfaces.mqtt.publish("${topicName}/override/set", json)
@@ -264,9 +193,9 @@ def on()
     watchDog()
     def overrideOptions = [:]
     overrideOptions.state = 'active'
-    overrideOptions.charge_current = '24'
-    overrideOptions.max_current = '24'
-    overrideOptions.auto_release = 'true'
+    overrideOptions.charge_current = charge_current.toString()
+    overrideOptions.max_current = max_current.toString()
+    overrideOptions.auto_release = auto_release ? true : false
     def json = new groovy.json.JsonOutput().toJson(overrideOptions)
     infolog "turning on using manual override ${json}"
     interfaces.mqtt.publish("${topicName}/override/set", json)
@@ -277,9 +206,9 @@ def off()
     watchDog()
     def overrideOptions = [:]
     overrideOptions.state = 'disabled'
-    overrideOptions.charge_current = '24'
-    overrideOptions.max_current = '24'
-    overrideOptions.auto_release = 'true'
+    overrideOptions.charge_current = charge_current.toString()
+    overrideOptions.max_current = max_current.toString()
+    overrideOptions.auto_release = auto_release ? true : false
     def json = new groovy.json.JsonOutput().toJson(overrideOptions)
     infolog "turning off using manual override ${json}"
     interfaces.mqtt.publish("${topicName}/override/set", json)
