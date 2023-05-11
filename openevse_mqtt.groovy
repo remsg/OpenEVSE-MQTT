@@ -203,8 +203,11 @@ def divertMode( mode )
     watchDog()
     initializeLastUpdate()
     def divertMap = ["Normal":"1", "Eco":"2"]
-    infolog "setting divert mode to ${mode} ${divertMap[mode]}"
-    interfaces.mqtt.publish("${topicName}/divertmode", divertMap[mode])
+    def divertMode = divertMap[mode]
+    infolog "setting divert mode to ${mode} ${divertMode}"
+    state.lastUpdate["charge_rate"] = 1
+    updateTopic("charge_rate", "0")
+    interfaces.mqtt.publish("${topicName}/divertmode", divertMode)
 }
 def enableManualOverride( Ostate, Ocharge_current, Omax_current, Oauto_release )
 {
@@ -282,6 +285,7 @@ void initialize() {
         pauseExecution(1000)
         infolog "connection established..."
         topicList = [
+            "charge_rate",    // Current available for Eco Divert
             "override",    // Override Status {state:active/disabled, charge_current:>=0, max_current:>=0, auto_release:true/false}
             "pilot",        // Charge current allowed in Amps
             "divertmode",    // Divert Mode 1-Normal, 2-Eco (Solar) Divert
